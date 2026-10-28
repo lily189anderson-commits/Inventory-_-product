@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>System Pagla</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ===== Left menu (becomes bottom bar on mobile) ===== -->
+  <nav class="menu">
+    <div class="brand">
+      <span class="brand-mark">S</span>
+      <span class="brand-name">System Pagla</span>
+    </div>
+    <button class="menu-btn active" data-page="dashboard">Dashboard</button>
+    <button class="menu-btn" data-page="products">Products</button>
+    <button class="menu-btn" data-page="sale">New Sale</button>
+    <button class="menu-btn" data-page="history">Sales History</button>
+  </nav>
+
+  <main class="content">
+
+    <!-- Shown only when saved data had problems -->
+    <div class="notice" id="data-notice" role="status" hidden></div>
+
+    <!-- ================= DASHBOARD ================= -->
+    <section id="page-dashboard" class="page active">
+      <h1>Dashboard</h1>
+
+      <div class="stats">
+        <div class="stat">
+          <span class="stat-label">Total products</span>
+          <span class="stat-value" id="stat-products">0</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Total sales (incl. tax)</span>
+          <span class="stat-value" id="stat-revenue">PKR 0.00</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Completed orders</span>
+          <span class="stat-value" id="stat-orders">0</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Low-stock products</span>
+          <span class="stat-value warn" id="stat-low">0</span>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <h2>Top-selling product</h2>
+          <div id="top-product"></div>
+        </div>
+        <div class="panel">
+          <h2>Inventory cost value</h2>
+          <p class="big-number" id="stat-cost">PKR 0.00</p>
+          <p class="muted">Purchase price × quantity, added up for all products.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Products that need restocking</h2>
+        <div id="low-stock-list"></div>
+      </div>
+    </section>
+
+    <!-- ================= PRODUCTS ================= -->
+    <section id="page-products" class="page">
+      <div class="page-head">
+        <h1>Products</h1>
+        <button class="btn primary" id="btn-add-product">+ Add product</button>
+      </div>
+
+      <div class="toolbar">
+        <input type="search" id="product-search" placeholder="Search by name or ID" autocomplete="off">
+        <select id="product-category" aria-label="Filter by category"></select>
+        <select id="product-sort" aria-label="Sort products">
+          <option value="name">Sort by name</option>
+          <option value="price">Sort by selling price</option>
+          <option value="quantity">Sort by quantity</option>
+        </select>
+      </div>
+
+      <div class="table-wrap">
+        <table class="stack">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Category</th>
+              <th class="num">Purchase</th>
+              <th class="num">Selling</th>
+              <th class="num">Qty</th>
+              <th class="num">Min</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="product-table"></tbody>
+        </table>
+      </div>
+      <div id="product-empty"></div>
+    </section>
+
+    <!-- ================= NEW SALE ================= -->
+    <section id="page-sale" class="page">
+      <h1>New Sale</h1>
+
+      <div class="sale-layout">
+        <div class="panel">
+          <h2>Pick products</h2>
+          <input type="search" id="sale-search" placeholder="Search products" autocomplete="off">
+          <div id="sale-products"></div>
+        </div>
+
+        <div class="panel cart">
+          <h2>Cart</h2>
+          <div id="cart-items"></div>
+
+          <div class="totals">
+            <div class="total-row"><span>Subtotal</span><span id="cart-subtotal">PKR 0.00</span></div>
+            <div class="total-row"><span>Discount (10% off at PKR 10,000+)</span><span id="cart-discount">PKR 0.00</span></div>
+            <div class="total-row"><span>Tax (5%)</span><span id="cart-tax">PKR 0.00</span></div>
+            <div class="total-row grand"><span>Grand total</span><span id="cart-total">PKR 0.00</span></div>
+          </div>
+
+          <button class="btn primary wide" id="btn-checkout">Complete checkout</button>
+          <button class="btn ghost wide" id="btn-clear-cart">Clear cart</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SALES HISTORY ================= -->
+    <section id="page-history" class="page">
+      <h1>Sales History</h1>
+
+      <div class="toolbar">
+        <input type="search" id="history-search" placeholder="Search by sale ID (e.g. SALE-0001)" autocomplete="off">
+        <input type="date" id="history-date" aria-label="Filter by date">
+        <button class="btn ghost" id="btn-clear-filters">Clear filters</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="stack">
+          <thead>
+            <tr>
+              <th>Sale ID</th>
+              <th>Date & time</th>
+              <th>Items purchased</th>
+              <th class="num">Final amount</th>
+            </tr>
+          </thead>
+          <tbody id="history-table"></tbody>
+        </table>
+      </div>
+      <div id="history-empty"></div>
+    </section>
+
+  </main>
+
+  <!-- ===== Add / Edit product window ===== -->
+  <div class="overlay" id="product-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <h2 id="modal-title">Add product</h2>
+
+      <div class="form-grid">
+        <label>Product ID
+          <input type="text" id="f-id" placeholder="PRD-001" maxlength="20" autocomplete="off">
+        </label>
+        <label>Name
+          <input type="text" id="f-name" placeholder="Wireless Mouse" maxlength="60" autocomplete="off">
+        </label>
+        <label>Category
+          <input type="text" id="f-category" placeholder="Electronics" list="category-list" maxlength="30" autocomplete="off">
+          <datalist id="category-list"></datalist>
+        </label>
+        <label>Purchase price (PKR)
+          <input type="number" id="f-purchase" min="0" step="any" placeholder="1200">
+        </label>
+        <label>Selling price (PKR)
+          <input type="number" id="f-selling" min="0" step="any" placeholder="1800">
+        </label>
+        <label>Quantity
+          <input type="number" id="f-quantity" min="0" step="1" placeholder="25">
+        </label>
+        <label>Minimum stock
+          <input type="number" id="f-min" min="0" step="1" placeholder="5">
+        </label>
+      </div>
+
+      <p class="form-warning" id="form-warning"></p>
+      <p class="form-error" id="form-error"></p>
+
+      <div class="modal-actions">
+        <button class="btn ghost" id="btn-cancel">Cancel</button>
+        <button class="btn primary" id="btn-save">Save product</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Confirmation panel (used for delete, checkout, clear cart) ===== -->
+  <div class="overlay" id="confirm-modal" hidden>
+    <div class="modal small" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+      <h2 id="confirm-title">Are you sure?</h2>
+      <p id="confirm-text"></p>
+      <div class="modal-actions">
+        <button class="btn ghost" id="confirm-cancel">Cancel</button>
+        <button class="btn primary" id="confirm-ok">Yes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- small message that pops up (e.g. "Product saved") -->
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <script src="script.js"></script>
+</body>
+</html>

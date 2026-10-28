@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tests - System Pagla</title>
+  <style>
+    body { font-family: "Segoe UI", system-ui, Arial, sans-serif; max-width: 760px; margin: 30px auto; padding: 0 16px; color: #1c2a2b; }
+    h1 { font-size: 22px; }
+    #summary { font-size: 18px; font-weight: 700; padding: 12px 16px; border-radius: 8px; margin: 14px 0; }
+    #summary.ok { background: #e2f5ea; color: #0a6b3d; }
+    #summary.bad { background: #fde8e6; color: #b42318; }
+    ul { list-style: none; padding: 0; }
+    li { padding: 6px 10px; border-bottom: 1px solid #e5e9ea; font-size: 14px; }
+    li.pass::before { content: "PASS  "; color: #0a6b3d; font-weight: 700; }
+    li.fail::before { content: "FAIL  "; color: #b42318; font-weight: 700; }
+    li.fail { background: #fff8f7; }
+    .group { margin: 18px 0 4px; font-weight: 700; }
+    .muted { color: #667476; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h1>Unit tests</h1>
+  <p class="muted">Open this file in your browser. It tests the calculation and checking functions from script.js.</p>
+  <div id="summary">Running...</div>
+  <ul id="results"></ul>
+
+  <!-- script.js does not start the app here, because the app screen is missing -->
+  <script src="script.js"></script>
+  <script>
+    let passed = 0;
+    let failed = 0;
+    const list = document.getElementById("results");
+
+    function group(name) {
+      const li = document.createElement("li");
+      li.className = "group";
+      li.textContent = name;
+      li.style.borderBottom = "none";
+      list.appendChild(li);
+    }
+
+    // check(name, actual, expected): passes when both are equal
+    function check(name, actual, expected) {
+      const a = JSON.stringify(actual);
+      const e = JSON.stringify(expected);
+      const ok = a === e;
+      if (ok) passed++; else failed++;
+      const li = document.createElement("li");
+      li.className = ok ? "pass" : "fail";
+      li.textContent = name + (ok ? "" : "  (got " + a + ", expected " + e + ")");
+      list.appendChild(li);
+    }
+
+    // a valid sample product and sale used by many tests
+    function product(extra) {
+      return Object.assign({ id: "PRD-001", name: "Wireless Mouse", category: "Electronics",
+        purchasePrice: 1200, sellingPrice: 1800, quantity: 25, minStock: 5 }, extra || {});
+    }
+    function sale(extra) {
+      return Object.assign({ id: "SALE-0001", time: "2026-10-18T10:00:00.000Z",
+        items: [{ id: "PRD-001", name: "Wireless Mouse", price: 1800, qty: 2, lineTotal: 3600 }],
+        subtotal: 3600, discount: 0, tax: 180, total: 3780 }, extra || {});
+    }
+    function formValues(extra) {
+      return Object.assign({ id: "PRD-009", name: "Pen", category: "Stationery",
+        purchase: "10", selling: "15", quantity: "20", min: "5" }, extra || {});
+    }
+
+    /* ---------- money / round2 ---------- */
+    group("money and rounding");
+    check("round2(0.1 + 0.2) is 0.3", round2(0.1 + 0.2), 0.3);
+    check("money shows 2 decimals for whole numbers", money(1890), "PKR 1,890.00");
+    check("money shows 2 decimals for 10.6", money(10.6), "PKR 10.60");
+    check("money zero", money(0), "PKR 0.00");
+    check("money big number has commas", money(1234567.5), "PKR 1,234,567.50");
+
+    /* ---------- stockStatus ---------- */
+    group("stock status");
+    check("quantity 0 is out", stockStatus(product({ quantity: 0 })), "out");
+    check("quantity equal to minimum is low", stockStatus(product({ quantity: 5, minStock: 5 })), "low");
+    check("quantity below minimum is low", stockStatus(product({ quantity: 3, minStock: 5 })), "low");
+    check("quantity above minimum is ok", stockStatus(product({ quantity: 6, minStock: 5 })), "ok");
+    check("quantity 0 and minimum 0 is still out", stockStatus(product({ quantity: 0, minStock: 0 })), "out");
+
+    /* ---------- calculateTotals ---------- */
+    group("calculateTotals");
+    const list2 = [product(), product({ id: "PRD-002", name: "USB Keyboard", sellingPrice: 2300 })];
+    check("empty cart is all zero", calculateTotals([], list2), { subtotal: 0, discount: 0, tax: 0, total: 0 });
+    check("9,200 has no discount",
+      calculateTotals([{ id: "PRD-002", qty: 4 }], list2), { subtotal: 9200, discount: 0, tax: 460, total: 9660 });
+    check("9,999 has no discount",
+      calculateTotals([{ id: "PRD-001", qty: 1 }, { id: "PRD-002", qty: 1 }, ], [product({ sellingPrice: 7699 }), product({ id: "PRD-002", sellingPrice: 2300 })]).discount, 0);
+    check("exactly 10,000 gets 10% discount",
+      calculateTotals([{ id: "PRD-004", qty: 25 }], [product({ id: "PRD-004", sellingPrice: 400 })]),
+      { subtotal: 10000, discount: 1000, tax: 450, total: 9450 });
+    check("12,000 example: discount 1,200, tax 540, total 11,340",
+      calculateTotals([{ id: "PRD-003", qty: 10 }], [product({ id: "PRD-003", sellingPrice: 1200 })]),
+      { subtotal: 12000, discount: 1200, tax: 540, total: 11340 });
+    check("tax is on the discounted amount",
+      calculateTotals([{ id: "PRD-001", qty: 6 }], list2).tax, 486);
+    check("unknown product in cart is ignored",
+      calculateTotals([{ id: "NOPE", qty: 3 }], list2).subtotal, 0);
+    check("decimal prices are rounded to 2 places",
+      calculateTotals([{ id: "A", qty: 3 }], [product({ id: "A", sellingPrice: 33.33 })]),
+      { subtotal: 99.99, discount: 0, tax: 5, total: 104.99 });
+
+    /* ---------- nextSaleId ---------- */
+    group("nextSaleId");
+    check("first sale", nextSaleId([]), "SALE-0001");
+    check("after SALE-0007", nextSaleId([{ id: "SALE-0003" }, { id: "SALE-0007" }]), "SALE-0008");
+    check("ignores IDs that do not match", nextSaleId([{ id: "abc" }, { id: "SALE-0002" }]), "SALE-0003");
+    check("goes past 4 digits", nextSaleId([{ id: "SALE-9999" }]), "SALE-10000");
+    check("never repeats an existing ID", nextSaleId([{ id: "SALE-0001" }]) !== "SALE-0001", true);
+
+    /* ---------- cleanProducts ---------- */
+    group("cleanProducts");
+    check("keeps a valid product", cleanProducts([product()]).length, 1);
+    check("drops null, numbers and text", cleanProducts([null, 5, "x", undefined]).length, 0);
+    check("drops missing name", cleanProducts([product({ name: "" })]).length, 0);
+    check("drops missing ID", cleanProducts([product({ id: "  " })]).length, 0);
+    check("drops zero price", cleanProducts([product({ purchasePrice: 0 })]).length, 0);
+    check("drops negative selling price", cleanProducts([product({ sellingPrice: -1 })]).length, 0);
+    check("drops price stored as text", cleanProducts([product({ sellingPrice: "1800" })]).length, 0);
+    check("drops negative quantity", cleanProducts([product({ quantity: -4 })]).length, 0);
+    check("drops decimal quantity", cleanProducts([product({ quantity: 2.5 })]).length, 0);
+    check("drops NaN / Infinity", cleanProducts([product({ sellingPrice: Infinity })]).length, 0);
+    check("drops duplicate IDs (any letter case)",
+      cleanProducts([product(), product({ id: "prd-001", name: "Copy" })]).length, 1);
+    check("fixes a bad minimum stock to 0", cleanProducts([product({ minStock: "x" })])[0].minStock, 0);
+    check("empty category becomes General", cleanProducts([product({ category: "" })])[0].category, "General");
+    check("ID 'constructor' is accepted",
+      cleanProducts([product({ id: "constructor" })]).length, 1);
+    check("ID '__proto__' is accepted",
+      cleanProducts([product({ id: "__proto__" })]).length, 1);
+
+    /* ---------- cleanSales ---------- */
+    group("cleanSales");
+    check("keeps a valid sale", cleanSales([sale()]).length, 1);
+    check("drops null / numbers", cleanSales([null, 7, "x"]).length, 0);
+    check("drops sale with no items", cleanSales([sale({ items: [] })]).length, 0);
+    check("drops sale when items is not a list", cleanSales([sale({ items: "x" })]).length, 0);
+    check("drops sale with an invalid date", cleanSales([sale({ time: "not a date" })]).length, 0);
+    check("drops WHOLE sale if one item is bad",
+      cleanSales([sale({ items: [
+        { id: "PRD-001", name: "Wireless Mouse", price: 1800, qty: 2 },
+        { id: "PRD-002", name: "Broken", price: 100, qty: -1 }
+      ] })]).length, 0);
+    check("drops sale if item has no ID",
+      cleanSales([sale({ items: [{ name: "Wireless Mouse", price: 1800, qty: 2 }] })]).length, 0);
+    check("drops sale when subtotal does not match items", cleanSales([sale({ subtotal: 999 })]).length, 0);
+    check("drops sale when total does not add up", cleanSales([sale({ total: 1 })]).length, 0);
+    check("drops sale with text total", cleanSales([sale({ total: "3780" })]).length, 0);
+    check("drops duplicate sale IDs", cleanSales([sale(), sale()]).length, 1);
+    check("keeps a sale with discount",
+      cleanSales([sale({ items: [{ id: "A", name: "A", price: 12000, qty: 1 }],
+        subtotal: 12000, discount: 1200, tax: 540, total: 11340 })]).length, 1);
+
+    /* ---------- topSellingProduct ---------- */
+    group("topSellingProduct");
+    function saleOf(id, time, items) {
+      return { id: id, time: time, items: items, subtotal: 0, discount: 0, tax: 0, total: 0 };
+    }
+    check("no sales gives null", topSellingProduct([], [product()]), null);
+    check("picks the product with most units",
+      topSellingProduct([
+        saleOf("S1", "2026-01-01T10:00:00Z", [{ id: "A", name: "Apple", qty: 2 }, { id: "B", name: "Banana", qty: 5 }]),
+        saleOf("S2", "2026-01-02T10:00:00Z", [{ id: "A", name: "Apple", qty: 2 }])
+      ], []).id, "B");
+    check("adds units across sales",
+      topSellingProduct([
+        saleOf("S1", "2026-01-01T10:00:00Z", [{ id: "A", name: "Apple", qty: 3 }]),
+        saleOf("S2", "2026-01-02T10:00:00Z", [{ id: "A", name: "Apple", qty: 4 }]),
+        saleOf("S3", "2026-01-03T10:00:00Z", [{ id: "B", name: "Banana", qty: 6 }])
+      ], []).units, 7);
+    check("two products with the same name stay separate",
+      topSellingProduct([
+        saleOf("S1", "2026-01-01T10:00:00Z", [{ id: "A", name: "Pen", qty: 3 }]),
+        saleOf("S2", "2026-01-02T10:00:00Z", [{ id: "B", name: "Pen", qty: 2 }])
+      ], []).units, 3);
+    check("renaming keeps history and shows the new name",
+      topSellingProduct([
+        saleOf("S1", "2026-01-01T10:00:00Z", [{ id: "A", name: "Old Name", qty: 3 }]),
+        saleOf("S2", "2026-01-02T10:00:00Z", [{ id: "A", name: "Old Name", qty: 2 }])
+      ], [product({ id: "A", name: "New Name" })]),
+      { id: "A", name: "New Name", units: 5 });
+    check("deleted product shows its newest name from sales",
+      topSellingProduct([
+        saleOf("S2", "2026-02-01T10:00:00Z", [{ id: "A", name: "Newer", qty: 1 }]),
+        saleOf("S1", "2026-01-01T10:00:00Z", [{ id: "A", name: "Older", qty: 1 }])
+      ], []).name, "Newer");
+    check("ID 'constructor' works",
+      topSellingProduct([saleOf("S1", "2026-01-01T10:00:00Z", [{ id: "constructor", name: "Odd", qty: 2 }])], []).units, 2);
+
+    /* ---------- validateProduct ---------- */
+    group("validateProduct");
+    check("valid form passes", validateProduct(formValues(), [], null), "");
+    check("missing ID", validateProduct(formValues({ id: "" }), [], null), "Product ID is required.");
+    check("missing name", validateProduct(formValues({ name: "" }), [], null), "Product name is required.");
+    check("missing category", validateProduct(formValues({ category: "" }), [], null), "Category is required.");
+    check("missing purchase price", validateProduct(formValues({ purchase: "" }), [], null), "Purchase price is required.");
+    check("missing selling price", validateProduct(formValues({ selling: "" }), [], null), "Selling price is required.");
+    check("missing quantity", validateProduct(formValues({ quantity: "" }), [], null), "Quantity is required.");
+    check("missing minimum", validateProduct(formValues({ min: "" }), [], null), "Minimum stock is required.");
+    check("zero price rejected", validateProduct(formValues({ purchase: "0" }), [], null).indexOf("more than 0") !== -1, true);
+    check("negative price rejected", validateProduct(formValues({ selling: "-5" }), [], null).indexOf("more than 0") !== -1, true);
+    check("text price rejected", validateProduct(formValues({ selling: "abc" }), [], null).indexOf("more than 0") !== -1, true);
+    check("decimal quantity rejected", validateProduct(formValues({ quantity: "2.5" }), [], null).indexOf("whole number") !== -1, true);
+    check("negative quantity rejected", validateProduct(formValues({ quantity: "-1" }), [], null).indexOf("whole number") !== -1, true);
+    check("zero quantity is allowed", validateProduct(formValues({ quantity: "0" }), [], null), "");
+    check("zero minimum is allowed", validateProduct(formValues({ min: "0" }), [], null), "");
+    check("decimal minimum rejected", validateProduct(formValues({ min: "1.5" }), [], null).indexOf("whole number") !== -1, true);
+    check("duplicate ID rejected when adding",
+      validateProduct(formValues({ id: "PRD-001" }), [product()], null).indexOf("already exists") !== -1, true);
+    check("duplicate ID rejected in any letter case",
+      validateProduct(formValues({ id: "prd-001" }), [product()], null).indexOf("already exists") !== -1, true);
+    check("same ID is fine when editing", validateProduct(formValues({ id: "PRD-001" }), [product()], "PRD-001"), "");
+    check("ID longer than 20 rejected", validateProduct(formValues({ id: "X".repeat(21) }), [], null).indexOf("20") !== -1, true);
+    check("name longer than 60 rejected", validateProduct(formValues({ name: "N".repeat(61) }), [], null).indexOf("60") !== -1, true);
+    check("category longer than 30 rejected", validateProduct(formValues({ category: "C".repeat(31) }), [], null).indexOf("30") !== -1, true);
+    check("name of exactly 60 is fine", validateProduct(formValues({ name: "N".repeat(60) }), [], null), "");
+    check("huge price rejected", validateProduct(formValues({ selling: "1e12" }), [], null).indexOf("100,000,000") !== -1, true);
+    check("huge quantity rejected", validateProduct(formValues({ quantity: "99999999" }), [], null).indexOf("1,000,000") !== -1, true);
+    check("selling below purchase is allowed (only a warning)", validateProduct(formValues({ purchase: "50", selling: "10" }), [], null), "");
+    check("price that rounds to 0 rejected (purchase)", validateProduct(formValues({ purchase: "0.004" }), [], null), "Purchase price must be at least PKR 0.01.");
+    check("price that rounds to 0 rejected (selling)", validateProduct(formValues({ selling: "0.001" }), [], null), "Selling price must be at least PKR 0.01.");
+    check("price of 0.005 is allowed (rounds to 0.01)", validateProduct(formValues({ purchase: "0.005" }), [], null), "");
+    check("unreadable number text gives a number message, not 'required'", validateProduct(formValues({ purchase: "invalid" }), [], null), "Purchase price must be a number more than 0.");
+
+    /* ---------- rejected records are kept, not lost ---------- */
+    group("rejected records (quarantine)");
+    (function () {
+      const bad = [];
+      const good = cleanProducts([product(), product({ sellingPrice: "1800", id: "PRD-002" }), null], bad);
+      check("good product still kept", good.length, 1);
+      check("rejected products are collected", bad.length, 2);
+      check("the raw record is returned unchanged", bad[0].sellingPrice, "1800");
+      const badSales = [];
+      cleanSales([sale(), sale({ id: "SALE-0002", total: 1 })], badSales);
+      check("rejected sale is collected", badSales.length, 1);
+      check("works without the second argument", cleanProducts([null]).length, 0);
+    })();
+
+    /* ---------- mergeProductEdit (edit in one tab, sale in another) ---------- */
+    group("mergeProductEdit");
+    (function () {
+      const snap = product({ quantity: 25 });
+      const sold = product({ quantity: 20 });                 // another tab sold 5
+      const typo = product({ quantity: 25, name: "Wireless Mouse X" });
+      const r1 = mergeProductEdit(snap, sold, typo);
+      check("name fixed, sold stock stays sold", [r1.product.name, r1.product.quantity], ["Wireless Mouse X", 20]);
+      const r2 = mergeProductEdit(snap, snap, typo);
+      check("normal edit applies", r2.product.name, "Wireless Mouse X");
+      const r3 = mergeProductEdit(snap, sold, product({ quantity: 30 }));
+      check("same field changed in both places is refused", typeof r3.error, "string");
+      const r4 = mergeProductEdit(snap, sold, product({ quantity: 20 }));
+      check("same new value in both places is fine", r4.product.quantity, 20);
+      check("sameProduct true", sameProduct(snap, product()), true);
+      check("sameProduct false", sameProduct(snap, sold), false);
+    })();
+
+    /* ---------- dateOnly ---------- */
+    group("dateOnly");
+    check("format is YYYY-MM-DD", /^\d{4}-\d{2}-\d{2}$/.test(dateOnly("2026-10-18T10:00:00.000Z")), true);
+    check("single digits get a leading zero", dateOnly(new Date(2026, 0, 5, 12).toISOString()), "2026-01-05");
+
+    /* ---------- result ---------- */
+    const summary = document.getElementById("summary");
+    summary.textContent = failed === 0
+      ? "ALL PASSED: " + passed + " tests"
+      : failed + " FAILED, " + passed + " passed";
+    summary.className = failed === 0 ? "ok" : "bad";
+    document.title = (failed === 0 ? "PASS" : "FAIL") + " - tests";
+  </script>
+</body>
+</html>
